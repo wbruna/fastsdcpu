@@ -1,6 +1,7 @@
 import gc
 from math import ceil
 from typing import Any
+import random
 
 import numpy as np
 import torch
@@ -331,14 +332,24 @@ class LCMTextToImage:
                 f"Strength: {lcm_diffusion_setting.strength},{img_to_img_inference_steps}"
             )
 
-        if lcm_diffusion_setting.use_seed:
-            cur_seed = lcm_diffusion_setting.seed
-            if self.use_openvino:
-                np.random.seed(cur_seed)
-            else:
-                torch.manual_seed(cur_seed)
+        pipeline_extra_args = {}
 
         is_openvino_pipe = lcm_diffusion_setting.use_openvino and is_openvino_device()
+
+        if lcm_diffusion_setting.use_seed:
+            cur_seed = lcm_diffusion_setting.seed
+            # for multiple images with a fixed seed, use sequential seeds
+            seeds = [(cur_seed + i) for i in range(lcm_diffusion_setting.number_of_images)]
+        else:
+            seeds = [random.randint(0,999999999) for i in range(lcm_diffusion_setting.number_of_images)]
+
+        if is_openvino_pipe:
+            # try to ensure reproducible results, at least for single images
+            np.random.seed(seeds[0])
+
+        pipeline_extra_args['generator'] = [
+            torch.Generator(device=self.device).manual_seed(s) for s in seeds]
+
         if is_openvino_pipe:
             print("Using OpenVINO")
             if reshape and not self.is_openvino_init:
@@ -354,7 +365,6 @@ class LCMTextToImage:
             if self.is_openvino_init:
                 self.is_openvino_init = False
 
-        pipeline_extra_args = {}
         if lcm_diffusion_setting.clip_skip > 1:
             # We follow the convention that "CLIP Skip == 2" means "skip
             # the last layer", so "CLIP Skip == 1" means "no skipping"
@@ -432,4 +442,8 @@ class LCMTextToImage:
                     **pipeline_extra_args,
                     **controlnet_args,
                 ).images
+
+        for (i, seed) in enumerate(seeds):
+            result_images[i].info['image_seed'] = seed
+
         return result_images

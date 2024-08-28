@@ -33,7 +33,14 @@ class ImageSaver:
     ) -> None:
         gen_id = uuid4()
 
+        image_seeds = []
+
         for index, image in enumerate(images):
+
+            image_seed = image.info.get('image_seed')
+            if image_seed is not None:
+                image_seeds.append(image_seed)
+
             if not path.exists(output_path):
                 mkdir(output_path)
 
@@ -50,11 +57,12 @@ class ImageSaver:
             image_extension = get_image_file_extension(format)
             image.save(path.join(out_path, f"{gen_id}-{index+1}{image_extension}"))
         if lcm_diffusion_setting:
+            data = lcm_diffusion_setting.model_dump(exclude=get_exclude_keys())
+            if image_seeds:
+                data['image_seeds'] = image_seeds
             with open(path.join(out_path, f"{gen_id}.json"), "w") as json_file:
                 json.dump(
-                    lcm_diffusion_setting.model_dump(
-                        exclude=get_exclude_keys(),
-                    ),
+                    data,
                     json_file,
                     indent=4,
                 )
