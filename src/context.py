@@ -3,6 +3,7 @@ from app_settings import Settings
 from models.interface_types import InterfaceType
 from backend.models.lcmdiffusion_setting import DiffusionTask
 from backend.lcm_text_to_image import LCMTextToImage
+from image_ops import add_metadata_to_pil_image
 from time import perf_counter
 from backend.image_saver import ImageSaver
 from pprint import pprint
@@ -61,6 +62,9 @@ class Context:
             reshape,
         )
         elapsed = perf_counter() - tick
+
+        for img in images:
+            add_metadata_to_pil_image(img, settings.lcm_diffusion_setting)
 
         if save_images and settings.generated_images.save_image:
             ImageSaver.save_images(
